@@ -5,13 +5,12 @@
 ## Start
 Setup Compile Environment in Docker for Hadoop and Compile Example Code
 
-    ./setup.sh 
+    ./start-build-env.sh
     
 ## Execute MR examples in Openjdk container
-    cd hadoop/
-    docker run --rm=true -it \
-            -v $(pwd)/hadoop-dist:/hadoop-dist openjdk \
-            bash -c 'cd hadoop-dist; bash run.sh'
+
+    ./mapreduce.sh
+
 
 ## Reference
 https://github.com/apache/hadoop/blob/trunk/BUILDING.txt
