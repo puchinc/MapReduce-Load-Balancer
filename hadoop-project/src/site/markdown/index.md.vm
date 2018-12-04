@@ -1,0 +1,75 @@
+<!---
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License. See accompanying LICENSE file.
+-->
+
+Apache Hadoop ${project.version}
+================================
+
+Apache Hadoop ${project.version} is a point release in the 2.x.y release
+line, building upon the previous stable release 2.9.1.
+
+Here is a short overview of the major features and improvements.
+
+*   Common
+
+    *   Aliyun OSS Support. See the
+        [user documentation](./hadoop-aliyun/tools/hadoop-aliyun/index.html)
+        for more details.
+
+    *   HADOOP Resource Estimator. See the
+        [user documentation](./hadoop-resourceestimator/ResourceEstimator.html)
+        for more details.
+
+*   HDFS
+
+    *   HDFS Router based federation. See the
+        [user documentation](./hadoop-project-dist/hadoop-hdfs-rbf/HDFSRouterFederation.html)
+        for more details.
+
+*   YARN
+
+    *   YARN Timeline Service v.2. See the
+        [user documentation](./hadoop-yarn/hadoop-yarn-site/TimelineServiceV2.html)
+        for more details.
+
+    *   YARN Federation. See the
+        [user documentation](./hadoop-yarn/hadoop-yarn-site/Federation.html)
+        for more details.
+
+    *   Opportunistic Containers. See the
+        [user documentation](./hadoop-yarn/hadoop-yarn-site/OpportunisticContainers.html)
+        for more details.
+
+    *   YARN Web UI v.2. See the
+        [user documentation](./hadoop-yarn/hadoop-yarn-site/YarnUI2.html)
+        for more details.
+
+    *   Changing queue configuration via API (supported only on the Capacity Scheduler). See the
+        [user documentation](./hadoop-yarn/hadoop-yarn-site/CapacityScheduler.html#Changing_queue_configuration_via_API)
+        for more details.
+
+    *   Update Resources and Execution Type of an allocated/running container.
+        (supported only on the Capacity Scheduler). See the
+        [user documentation](./hadoop-yarn/hadoop-yarn-site/CapacityScheduler.html#Updating_a_Container_Experimental_-_API_may_change_in_the_future)
+        for more details.
+
+
+Getting Started
+===============
+
+The Hadoop documentation includes the information you need to get started using
+Hadoop. Begin with the
+[Single Node Setup](./hadoop-project-dist/hadoop-common/SingleCluster.html) which
+shows you how to set up a single-node Hadoop installation. Then move on to the
+[Cluster Setup](./hadoop-project-dist/hadoop-common/ClusterSetup.html) to learn how
+to set up a multi-node Hadoop installation.
