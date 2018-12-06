@@ -9,7 +9,7 @@ Setup Compile Environment in Docker for Hadoop and Compile Example Code
     
 ## Execute MR examples in Openjdk container
 
-    ./mapreduce.sh
+    ./mapreduce.sh [input] [output] [example]
 
 
 ## Reference

@@ -1,8 +1,10 @@
 # Setup MapReduce container environment and execute mapreduce example
-EXAMPLE=${1:-'WordCount'}
+INPUT=${1:-'small_input'}
+OUTPUT=${2:-'output'}
+EXAMPLE=${3:-'WordCount'}
 
 docker run --rm=true -it \
     -v $(pwd)/hadoop-dist:/hadoop-dist \
-    -v $(pwd)/${EXAMPLE}:/${EXAMPLE} \
+    -v $(pwd)/examples:/examples \
     openjdk \
-    bash -c "cd ${EXAMPLE}; bash run.sh"
+    bash -c "cd examples; bash run.sh ${INPUT} ${OUTPUT} ${EXAMPLE}"

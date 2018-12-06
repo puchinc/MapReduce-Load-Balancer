@@ -384,6 +384,8 @@ public class LocalJobRunner implements ClientProtocol {
      */
     private synchronized void initCounters(int numMaps, int numReduces) {
       // Initialize state trackers for all map tasks.
+      LOG.info("OH YOOOOOOOOOOOOOOOOOO Maps: " + numMaps);
+      LOG.info("OH YAAAAAAAAAAAAAAA Reduces:" + numReduces);
       this.partialMapProgress = new float[numMaps];
       this.mapCounters = new Counters[numMaps];
       for (int i = 0; i < numMaps; i++) {
@@ -542,7 +544,7 @@ public class LocalJobRunner implements ClientProtocol {
         
         List<RunnableWithThrowable> mapRunnables = getMapTaskRunnables(
             taskSplitMetaInfos, jobId, mapOutputFiles);
-              
+
         initCounters(mapRunnables.size(), numReduceTasks);
         ExecutorService mapService = createMapExecutor();
         runTasks(mapRunnables, mapService, "map");
