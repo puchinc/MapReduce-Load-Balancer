@@ -21,12 +21,16 @@ package org.apache.hadoop.mapreduce.lib.map;
 import java.io.IOException;
 import java.net.URI;
 
+import java.util.Map;
+import java.util.HashMap;
+
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configuration.IntegerRanges;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.RawComparator;
+import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Counter;
 import org.apache.hadoop.mapreduce.InputFormat;
 import org.apache.hadoop.mapreduce.InputSplit;
@@ -39,6 +43,7 @@ import org.apache.hadoop.mapreduce.Partitioner;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.TaskAttemptID;
 import org.apache.hadoop.security.Credentials;
+
 
 /**
  * A {@link Mapper} which wraps a given one to allow custom 
@@ -58,15 +63,23 @@ public class WrappedMapper<KEYIN, VALUEIN, KEYOUT, VALUEOUT>
   getMapContext(MapContext<KEYIN, VALUEIN, KEYOUT, VALUEOUT> mapContext) {
     return new Context(mapContext);
   }
-  
+
+  public Context getContext(MapContext<KEYIN, VALUEIN, KEYOUT, VALUEOUT> mapContext) {
+    return new Context(mapContext);
+  }
+
   @InterfaceStability.Evolving
   public class Context 
       extends Mapper<KEYIN, VALUEIN, KEYOUT, VALUEOUT>.Context {
 
     protected MapContext<KEYIN, VALUEIN, KEYOUT, VALUEOUT> mapContext;
 
+    // calcuate local key distribution
+    protected Map<KEYOUT, Integer> localHistogram;
+
     public Context(MapContext<KEYIN, VALUEIN, KEYOUT, VALUEOUT> mapContext) {
       this.mapContext = mapContext;
+      this.localHistogram = new HashMap<>();
     }
 
     /**
@@ -74,6 +87,10 @@ public class WrappedMapper<KEYIN, VALUEIN, KEYOUT, VALUEOUT>
      */
     public InputSplit getInputSplit() {
       return mapContext.getInputSplit();
+    }
+
+    public Map<KEYOUT, Integer> getLocalHistogram() {
+      return localHistogram;
     }
 
     @Override
@@ -109,6 +126,17 @@ public class WrappedMapper<KEYIN, VALUEIN, KEYOUT, VALUEOUT>
     @Override
     public void write(KEYOUT key, VALUEOUT value) throws IOException,
         InterruptedException {
+
+      System.out.println("WrappedMapper WWWWWWWWWWWWWWWWWWWWrite (" + key + ", " + value + ")");
+
+      KEYOUT keyOut = (KEYOUT) new Text(key.toString());
+      if (localHistogram.containsKey(keyOut)) {
+        localHistogram.put(keyOut, localHistogram.get(keyOut) + 1);
+      }
+      else {
+        localHistogram.put(keyOut, 1);
+      }
+
       mapContext.write(key, value);
     }
 

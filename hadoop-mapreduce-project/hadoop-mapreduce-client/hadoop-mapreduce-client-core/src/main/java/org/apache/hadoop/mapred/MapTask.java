@@ -31,6 +31,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Arrays;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -783,14 +786,25 @@ public class MapTask extends Task {
           committer, 
           reporter, split);
 
-    org.apache.hadoop.mapreduce.Mapper<INKEY,INVALUE,OUTKEY,OUTVALUE>.Context 
-        mapperContext = 
-          new WrappedMapper<INKEY, INVALUE, OUTKEY, OUTVALUE>().getMapContext(
-              mapContext);
+//     org.apache.hadoop.mapreduce.Mapper<INKEY,INVALUE,OUTKEY,OUTVALUE>.Context
+//        mapperContext =
+//          new WrappedMapper<INKEY, INVALUE, OUTKEY, OUTVALUE>().getMapContext(
+//              mapContext);
+
+    WrappedMapper<INKEY, INVALUE, OUTKEY, OUTVALUE>.Context
+        mapperContext =
+        new WrappedMapper<INKEY, INVALUE, OUTKEY, OUTVALUE>().getContext(
+                mapContext);
 
     try {
       input.initialize(split, mapperContext);
       mapper.run(mapperContext);
+
+      Map<OUTKEY, Integer> localHistogram = mapperContext.getLocalHistogram();
+      for (OUTKEY ok: localHistogram.keySet()) {
+        LOG.info("(" + ok.toString() + ", " + localHistogram.get(ok) + ") ");
+      }
+
       mapPhase.complete();
       setPhase(TaskStatus.Phase.SORT);
       statusUpdate(umbilical);

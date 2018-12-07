@@ -520,8 +520,7 @@ public class LocalJobRunner implements ClientProtocol {
 
     @Override
     public void run() {
-      JobID jobId = profile.getJobID();
-      JobContext jContext = new JobContextImpl(job, jobId);
+      JobID jobId = profile.getJobID(); JobContext jContext = new JobContextImpl(job, jobId);
       
       org.apache.hadoop.mapreduce.OutputCommitter outputCommitter = null;
       try {

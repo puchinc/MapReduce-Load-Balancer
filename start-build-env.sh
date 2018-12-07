@@ -46,10 +46,12 @@ UserSpecificDocker
 # compile in the container
 
 # First time compilation
+
 if [ ! -d hadoop-cloud-storage-project/target ]; then
     DIRS=( . )
 else
-    DIRS=( hadoop-mapreduce-project hadoop-dist )
+    SRC=${1:-'hadoop-mapreduce-project'}
+    DIRS=( ${SRC} hadoop-dist )
 fi
 
 COMPILE='mvn package -Pdist -DskipTests -Dtar -Dmaven.javadoc.skip=true'
