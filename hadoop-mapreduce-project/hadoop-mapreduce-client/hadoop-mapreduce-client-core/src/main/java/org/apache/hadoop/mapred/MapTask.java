@@ -90,6 +90,9 @@ public class MapTask extends Task {
   // local histogram
   public Map<String, Integer> localHistogram;
 
+  // global histogram
+  public static Map<String, Integer> globalHistogram = new HashMap<>();
+
   private TaskSplitIndex splitMetaInfo = new TaskSplitIndex();
   private final static int APPROX_HEADER_LENGTH = 150;
 
@@ -98,6 +101,7 @@ public class MapTask extends Task {
   private Progress mapPhase;
   private Progress sortPhase;
 
+  private boolean shouldSplit;
 
 
   {   // set phase for this task
@@ -114,6 +118,14 @@ public class MapTask extends Task {
                  int numSlotsRequired) {
     super(jobFile, taskId, partition, numSlotsRequired);
     this.splitMetaInfo = splitIndex;
+  }
+
+  public MapTask(String jobFile, TaskAttemptID taskId,
+                 int partition, TaskSplitIndex splitIndex,
+                 int numSlotsRequired, boolean shouldSplit) {
+    super(jobFile, taskId, partition, numSlotsRequired);
+    this.splitMetaInfo = splitIndex;
+    this.shouldSplit = shouldSplit;
   }
 
   @Override
@@ -806,7 +818,7 @@ public class MapTask extends Task {
     WrappedMapper<INKEY, INVALUE, OUTKEY, OUTVALUE>.Context
         mapperContext =
         new WrappedMapper<INKEY, INVALUE, OUTKEY, OUTVALUE>().getContext(
-                mapContext);
+                mapContext, this.shouldSplit, MapTask.globalHistogram);
 
     try {
       input.initialize(split, mapperContext);

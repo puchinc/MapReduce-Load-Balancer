@@ -237,6 +237,8 @@ public class LocalJobRunner implements ClientProtocol {
 
       private Map<String, Integer> localHistogram;
 
+      private boolean shouldSplit;
+
       public Map<String, Integer> getLocalHistogram() {
         return localHistogram;
       }
@@ -250,6 +252,16 @@ public class LocalJobRunner implements ClientProtocol {
         this.localConf = new JobConf(job);
       }
 
+      public MapTaskRunnable(TaskSplitMetaInfo info, int taskId, JobID jobId,
+                             Map<TaskAttemptID, MapOutputFile> mapOutputFiles, boolean shouldSplit) {
+        this.info = info;
+        this.taskId = taskId;
+        this.mapOutputFiles = mapOutputFiles;
+        this.jobId = jobId;
+        this.localConf = new JobConf(job);
+        this.shouldSplit = shouldSplit;
+      }
+
       public void run() {
         try {
           TaskAttemptID mapId = new TaskAttemptID(new TaskID(
@@ -257,7 +269,8 @@ public class LocalJobRunner implements ClientProtocol {
           LOG.info("Starting task: " + mapId);
           mapIds.add(mapId);
           MapTask map = new MapTask(systemJobFile.toString(), mapId, taskId,
-            info.getSplitIndex(), 1);
+            info.getSplitIndex(), 1, this.shouldSplit);
+
           map.setUser(UserGroupInformation.getCurrentUser().
               getShortUserName());
           setupChildMapredLocalDirs(map, localConf);
@@ -309,8 +322,11 @@ public class LocalJobRunner implements ClientProtocol {
       ArrayList<RunnableWithThrowable> list =
           new ArrayList<RunnableWithThrowable>();
       for (TaskSplitMetaInfo task : taskInfo) {
+//        list.add(new MapTaskRunnable(task, numTasks++, jobId,
+//            mapOutputFiles));
+        boolean shouldSplit = numTasks / taskInfo.length >= 0.2;
         list.add(new MapTaskRunnable(task, numTasks++, jobId,
-            mapOutputFiles));
+                mapOutputFiles, shouldSplit));
       }
 
       return list;
@@ -611,6 +627,8 @@ public class LocalJobRunner implements ClientProtocol {
 
         initCounters(mapRunnables.size(), numReduceTasks);
         ExecutorService mapService = createMapExecutor();
+
+        // run 20%
         runMapTaskRunnables(mapRunnables, mapService, "map");
 
         Map<String, Integer> globalHistogram = new HashMap<>();
@@ -628,7 +646,6 @@ public class LocalJobRunner implements ClientProtocol {
         for (String key: globalHistogram.keySet()) {
           System.out.println("$$$$$$$$$$$$$$$$$ FUCKEEEERERRRRR (" + key + ", " + globalHistogram.get(key) + ")");
         }
-
 
         // collect histogram
         // set numReduceTasks

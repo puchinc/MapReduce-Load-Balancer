@@ -23,6 +23,9 @@ import java.net.URI;
 
 import java.util.Map;
 import java.util.HashMap;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Arrays;
 
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
@@ -43,6 +46,8 @@ import org.apache.hadoop.mapreduce.Partitioner;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.TaskAttemptID;
 import org.apache.hadoop.security.Credentials;
+
+import org.apache.hadoop.mapred.JobStatus;
 
 
 /**
@@ -68,6 +73,15 @@ public class WrappedMapper<KEYIN, VALUEIN, KEYOUT, VALUEOUT>
     return new Context(mapContext);
   }
 
+  public Context getContext(MapContext<KEYIN, VALUEIN, KEYOUT, VALUEOUT> mapContext, boolean shouldSplit) {
+    return new Context(mapContext, shouldSplit);
+  }
+
+  public Context getContext(MapContext<KEYIN, VALUEIN, KEYOUT, VALUEOUT> mapContext,
+                            boolean shouldSplit, Map<String, Integer> globalHistogram) {
+    return new Context(mapContext, shouldSplit, globalHistogram);
+  }
+
   @InterfaceStability.Evolving
   public class Context 
       extends Mapper<KEYIN, VALUEIN, KEYOUT, VALUEOUT>.Context {
@@ -76,10 +90,26 @@ public class WrappedMapper<KEYIN, VALUEIN, KEYOUT, VALUEOUT>
 
     // calcuate local key distribution
     protected Map<KEYOUT, Integer> localHistogram;
+    protected Map<String, Integer> globalHistogram;
+    protected boolean shouldSplit;
 
     public Context(MapContext<KEYIN, VALUEIN, KEYOUT, VALUEOUT> mapContext) {
       this.mapContext = mapContext;
       this.localHistogram = new HashMap<>();
+    }
+
+    public Context(MapContext<KEYIN, VALUEIN, KEYOUT, VALUEOUT> mapContext, boolean shouldSplit) {
+      this.mapContext = mapContext;
+      this.localHistogram = new HashMap<>();
+      this.shouldSplit = shouldSplit;
+    }
+
+    public Context(MapContext<KEYIN, VALUEIN, KEYOUT, VALUEOUT> mapContext,
+                   boolean shouldSplit, Map<String, Integer> globalHistogram) {
+      this.mapContext = mapContext;
+      this.localHistogram = new HashMap<>();
+      this.shouldSplit = shouldSplit;
+      this.globalHistogram = globalHistogram;
     }
 
     /**
@@ -131,21 +161,61 @@ public class WrappedMapper<KEYIN, VALUEIN, KEYOUT, VALUEOUT>
       return mapContext.getOutputCommitter();
     }
 
+    private int median(Map<String, Integer> histogrm) {
+      int[] list = new int[histogrm.size()];
+      int i = 0;
+      for (int value: histogrm.values()) {
+        list[i++] = value;
+      }
+      Arrays.sort(list);
+      return list[(int) list.length / 2];
+    }
+
     @Override
     public void write(KEYOUT key, VALUEOUT value) throws IOException,
         InterruptedException {
 
       System.out.println("WrappedMapper WWWWWWWWWWWWWWWWWWWWrite (" + key + ", " + value + ")");
 
-      KEYOUT keyOut = (KEYOUT) new Text(key.toString());
-      if (localHistogram.containsKey(keyOut)) {
-        localHistogram.put(keyOut, localHistogram.get(keyOut) + 1);
+      if (!this.shouldSplit) {
+        System.out.println("SHOOOOOOOOOOOOOLD DDDDDD SPLITTTTTTTTTTTTTTTTTTTTTTTT");
+        KEYOUT keyOut = (KEYOUT) new Text(key.toString());
+        if (localHistogram.containsKey(keyOut)) {
+          localHistogram.put(keyOut, localHistogram.get(keyOut) + 1);
+        } else {
+          localHistogram.put(keyOut, 1);
+        }
+
+        if (globalHistogram.containsKey(key.toString())) {
+          globalHistogram.put(key.toString(), globalHistogram.get(key.toString()) + 1);
+        } else {
+          globalHistogram.put(key.toString(), 1);
+        }
+
+        mapContext.write(key, value);
+
       }
       else {
-        localHistogram.put(keyOut, 1);
+        System.out.println("NNNNNNNNNNNNNNNNNNNNNNN  SPLITTTTTTTTTTTTTTTTTTTTTTTT");
+
+        // compute median from global histogram
+        int median = median(globalHistogram) * 5;
+        int count = globalHistogram.get(key.toString());
+
+        // don't split
+        if (count <= median) {
+          mapContext.write(key, value);
+        }
+        // split key
+        else {
+          for (int i = 0; i < (int) count / median; i++) {
+            String temp = (key.toString() + "/" + i);
+            KEYOUT output = (KEYOUT) new Text(temp);
+            mapContext.write(key, value);
+          }
+        }
       }
 
-      mapContext.write(key, value);
     }
 
     @Override
