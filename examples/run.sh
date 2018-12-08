@@ -12,6 +12,6 @@ hadoop com.sun.tools.javac.Main ${EXAMPLE}.java
 jar cf ${EXAMPLE}.jar ${EXAMPLE}*.class
 
 # Execute
+rm -rf ${OUTPUT}
 hadoop jar ${EXAMPLE}.jar ${EXAMPLE} ${INPUT} ${OUTPUT}
 find ${OUTPUT} -name 'part*' | xargs hadoop fs -cat
-rm -rf ${OUTPUT}

@@ -120,16 +120,18 @@ public class WrappedMapper<KEYIN, VALUEIN, KEYOUT, VALUEOUT>
     }
 
     public Map<KEYOUT, Integer> getLocalHistogram() {
-      return localHistogram;
+      return this.localHistogram;
     }
-
     public Map<String, Integer> getLocalStringHistogram() {
       Map<String, Integer> map = new HashMap<>();
       for (KEYOUT key: localHistogram.keySet()) {
-          map.put(key.toString(), localHistogram.get(key));
+        map.put(key.toString(), localHistogram.get(key));
       }
       return map;
     }
+
+    public Map<String, Integer> getGlobalHistogram() { return this.globalHistogram; }
+
 
     @Override
     public KEYIN getCurrentKey() throws IOException, InterruptedException {
@@ -161,10 +163,14 @@ public class WrappedMapper<KEYIN, VALUEIN, KEYOUT, VALUEOUT>
       return mapContext.getOutputCommitter();
     }
 
-    private int median(Map<String, Integer> histogrm) {
-      int[] list = new int[histogrm.size()];
+    private int median(Map<String, Integer> histogram) {
+      if (histogram.size() == 0) {
+        return 1;
+      }
+
+      int[] list = new int[histogram.size()];
       int i = 0;
-      for (int value: histogrm.values()) {
+      for (int value: histogram.values()) {
         list[i++] = value;
       }
       Arrays.sort(list);
@@ -175,10 +181,10 @@ public class WrappedMapper<KEYIN, VALUEIN, KEYOUT, VALUEOUT>
     public void write(KEYOUT key, VALUEOUT value) throws IOException,
         InterruptedException {
 
-      System.out.println("WrappedMapper WWWWWWWWWWWWWWWWWWWWrite (" + key + ", " + value + ")");
+      System.out.println("WrappedMapper Write (" + key + ", " + value + ")");
 
       if (!this.shouldSplit) {
-        System.out.println("SHOOOOOOOOOOOOOLD DDDDDD SPLITTTTTTTTTTTTTTTTTTTTTTTT");
+//        System.out.println("SPLIT!");
         KEYOUT keyOut = (KEYOUT) new Text(key.toString());
         if (localHistogram.containsKey(keyOut)) {
           localHistogram.put(keyOut, localHistogram.get(keyOut) + 1);
@@ -196,11 +202,14 @@ public class WrappedMapper<KEYIN, VALUEIN, KEYOUT, VALUEOUT>
 
       }
       else {
-        System.out.println("NNNNNNNNNNNNNNNNNNNNNNN  SPLITTTTTTTTTTTTTTTTTTTTTTTT");
+        System.out.println("Noooooooot  SPLIT");
+        System.out.println(Arrays.toString(globalHistogram.keySet().toArray()));
+        System.out.println(Arrays.toString(globalHistogram.values().toArray()));
 
         // compute median from global histogram
         int median = median(globalHistogram) * 5;
         int count = globalHistogram.get(key.toString());
+        System.out.println("Median: " + Integer.toString(median) + " Count: " + Integer.toString(count));
 
         // don't split
         if (count <= median) {
@@ -210,8 +219,8 @@ public class WrappedMapper<KEYIN, VALUEIN, KEYOUT, VALUEOUT>
         else {
           for (int i = 0; i < (int) count / median; i++) {
             String temp = (key.toString() + "/" + i);
-            KEYOUT output = (KEYOUT) new Text(temp);
-            mapContext.write(key, value);
+            KEYOUT newKey = (KEYOUT) new Text(temp);
+            mapContext.write(newKey, value);
           }
         }
       }

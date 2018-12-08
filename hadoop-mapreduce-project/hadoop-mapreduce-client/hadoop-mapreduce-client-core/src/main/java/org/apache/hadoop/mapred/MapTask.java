@@ -93,6 +93,8 @@ public class MapTask extends Task {
   // global histogram
   public static Map<String, Integer> globalHistogram = new HashMap<>();
 
+  private boolean shouldSplit;
+
   private TaskSplitIndex splitMetaInfo = new TaskSplitIndex();
   private final static int APPROX_HEADER_LENGTH = 150;
 
@@ -100,8 +102,6 @@ public class MapTask extends Task {
 
   private Progress mapPhase;
   private Progress sortPhase;
-
-  private boolean shouldSplit;
 
 
   {   // set phase for this task
@@ -126,6 +126,11 @@ public class MapTask extends Task {
     super(jobFile, taskId, partition, numSlotsRequired);
     this.splitMetaInfo = splitIndex;
     this.shouldSplit = shouldSplit;
+  }
+
+
+  public Map<String, Integer> getGlobalHistogram() {
+    return MapTask.globalHistogram;
   }
 
   @Override
@@ -825,12 +830,16 @@ public class MapTask extends Task {
       mapper.run(mapperContext);
 
       // Get Result of local histogram from one mapper
-      Map<OUTKEY, Integer> localHistogram = mapperContext.getLocalHistogram();
-      for (OUTKEY ok: localHistogram.keySet()) {
-        LOG.info("(" + ok.toString() + ", " + localHistogram.get(ok) + ") ");
-      }
+//      this.localHistogram = mapperContext.getLocalStringHistogram();
+//      for (OUTKEY ok: this.localHistogram.keySet()) {
+//        LOG.info("Local: (" + ok.toString() + ", " + this.localHistogram.get(ok) + ") ");
+//      }
 
-      this.localHistogram = mapperContext.getLocalStringHistogram();
+//      Map<String, Integer> globalHistogram = MapTask.globalHistogram;
+//      for (String ok: globalHistogram.keySet()) {
+//        LOG.info("Global: (" + ok.toString() + ", " + globalHistogram.get(ok) + ") ");
+//      }
+
 
       mapPhase.complete();
       setPhase(TaskStatus.Phase.SORT);

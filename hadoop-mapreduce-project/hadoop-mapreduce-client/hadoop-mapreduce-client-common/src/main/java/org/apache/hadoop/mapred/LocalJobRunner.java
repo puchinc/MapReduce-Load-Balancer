@@ -236,11 +236,16 @@ public class LocalJobRunner implements ClientProtocol {
       private final Map<TaskAttemptID, MapOutputFile> mapOutputFiles;
 
       private Map<String, Integer> localHistogram;
+      private Map<String, Integer> globalHistogram;
 
       private boolean shouldSplit;
 
       public Map<String, Integer> getLocalHistogram() {
-        return localHistogram;
+        return this.localHistogram;
+      }
+
+      public Map<String, Integer> getGlobalHistogram() {
+        return this.globalHistogram;
       }
 
       public MapTaskRunnable(TaskSplitMetaInfo info, int taskId, JobID jobId,
@@ -289,10 +294,14 @@ public class LocalJobRunner implements ClientProtocol {
             map.run(localConf, Job.this);
 
             // set local histogram
-            localHistogram = map.localHistogram;
-            for (String key: localHistogram.keySet()) {
-              System.out.println("!!!!!!!!!!!!!!!! (" + key + ", " + localHistogram.get(key) + ")");
-            }
+//            localHistogram = map.localHistogram;
+//            for (String key: localHistogram.keySet()) {
+//              System.out.println("Local Histogram (" + key + ", " + localHistogram.get(key) + ")");
+//            }
+            this.globalHistogram = map.getGlobalHistogram();
+//            for (String key: this.globalHistogram.keySet()) {
+//              LOG.info("Global Histogram (" + key + ", " + this.globalHistogram.get(key) + ")");
+//            }
 
             myMetrics.completeMap(mapId);
           } finally {
@@ -322,13 +331,9 @@ public class LocalJobRunner implements ClientProtocol {
       ArrayList<RunnableWithThrowable> list =
           new ArrayList<RunnableWithThrowable>();
       for (TaskSplitMetaInfo task : taskInfo) {
-//        list.add(new MapTaskRunnable(task, numTasks++, jobId,
-//            mapOutputFiles));
-        boolean shouldSplit = numTasks / taskInfo.length >= 0.2;
         list.add(new MapTaskRunnable(task, numTasks++, jobId,
-                mapOutputFiles, shouldSplit));
+            mapOutputFiles));
       }
-
       return list;
     }
 
@@ -340,8 +345,11 @@ public class LocalJobRunner implements ClientProtocol {
       ArrayList<MapTaskRunnable> list =
               new ArrayList<MapTaskRunnable>();
       for (TaskSplitMetaInfo task : taskInfo) {
+//        list.add(new MapTaskRunnable(task, numTasks++, jobId,
+//                mapOutputFiles));
+        boolean shouldSplit = numTasks / taskInfo.length >= 0.2;
         list.add(new MapTaskRunnable(task, numTasks++, jobId,
-                mapOutputFiles));
+                mapOutputFiles, shouldSplit));
       }
 
       return list;
@@ -628,27 +636,29 @@ public class LocalJobRunner implements ClientProtocol {
         initCounters(mapRunnables.size(), numReduceTasks);
         ExecutorService mapService = createMapExecutor();
 
-        // run 20%
         runMapTaskRunnables(mapRunnables, mapService, "map");
-
-        Map<String, Integer> globalHistogram = new HashMap<>();
-        for (MapTaskRunnable mapTaskRunnable: mapRunnables) {
-          Map<String, Integer> localHistogram = mapTaskRunnable.getLocalHistogram();
-          for (String key: localHistogram.keySet()) {
-            if (globalHistogram.containsKey(key)) {
-              globalHistogram.put(key, globalHistogram.get(key) + localHistogram.get(key));
-            }
-            else {
-              globalHistogram.put(key, localHistogram.get(key));
-            }
-          }
-        }
-        for (String key: globalHistogram.keySet()) {
-          System.out.println("$$$$$$$$$$$$$$$$$ FUCKEEEERERRRRR (" + key + ", " + globalHistogram.get(key) + ")");
-        }
 
         // collect histogram
         // set numReduceTasks
+
+//        Map<String, Integer> globalHistogram = new HashMap<>();
+//        for (MapTaskRunnable mapTaskRunnable: mapRunnables) {
+//          Map<String, Integer> localHistogram = mapTaskRunnable.getLocalHistogram();
+//          for (String key: localHistogram.keySet()) {
+//            if (globalHistogram.containsKey(key)) {
+//              globalHistogram.put(key, globalHistogram.get(key) + localHistogram.get(key));
+//            }
+//            else {
+//              globalHistogram.put(key, localHistogram.get(key));
+//            }
+//          }
+//        }
+
+        Map<String, Integer> globalHistogram = mapRunnables.get(0).getGlobalHistogram();
+        for (String key: globalHistogram.keySet()) {
+          LOG.info("Global Histogram (" + key + ", " + globalHistogram.get(key) + ")");
+        }
+
 
         try {
           if (numReduceTasks > 0) {
