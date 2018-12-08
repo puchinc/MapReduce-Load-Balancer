@@ -93,6 +93,14 @@ public class WrappedMapper<KEYIN, VALUEIN, KEYOUT, VALUEOUT>
       return localHistogram;
     }
 
+    public Map<String, Integer> getLocalStringHistogram() {
+      Map<String, Integer> map = new HashMap<>();
+      for (KEYOUT key: localHistogram.keySet()) {
+          map.put(key.toString(), localHistogram.get(key));
+      }
+      return map;
+    }
+
     @Override
     public KEYIN getCurrentKey() throws IOException, InterruptedException {
       return mapContext.getCurrentKey();

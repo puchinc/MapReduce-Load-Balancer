@@ -87,6 +87,9 @@ public class MapTask extends Task {
    */
   public static final int MAP_OUTPUT_INDEX_RECORD_LENGTH = 24;
 
+  // local histogram
+  public Map<String, Integer> localHistogram;
+
   private TaskSplitIndex splitMetaInfo = new TaskSplitIndex();
   private final static int APPROX_HEADER_LENGTH = 150;
 
@@ -94,7 +97,9 @@ public class MapTask extends Task {
 
   private Progress mapPhase;
   private Progress sortPhase;
-  
+
+
+
   {   // set phase for this task
     setPhase(TaskStatus.Phase.MAP); 
     getProgress().setStatus("map");
@@ -322,6 +327,7 @@ public class MapTask extends Task {
       }
     }
     TaskReporter reporter = startReporter(umbilical);
+
  
     boolean useNewApi = job.getUseNewMapper();
     initialize(job, getJobID(), reporter, useNewApi);
@@ -737,6 +743,11 @@ public class MapTask extends Task {
     }
   }
 
+  public Map<String, Integer> getLocalHistogram() {
+    Map<String, Integer> localHistogram = this.localHistogram;
+    return localHistogram;
+  }
+
   @SuppressWarnings("unchecked")
   private <INKEY,INVALUE,OUTKEY,OUTVALUE>
   void runNewMapper(final JobConf job,
@@ -786,6 +797,7 @@ public class MapTask extends Task {
           committer, 
           reporter, split);
 
+// Original Code
 //     org.apache.hadoop.mapreduce.Mapper<INKEY,INVALUE,OUTKEY,OUTVALUE>.Context
 //        mapperContext =
 //          new WrappedMapper<INKEY, INVALUE, OUTKEY, OUTVALUE>().getMapContext(
@@ -800,10 +812,13 @@ public class MapTask extends Task {
       input.initialize(split, mapperContext);
       mapper.run(mapperContext);
 
+      // Get Result of local histogram from one mapper
       Map<OUTKEY, Integer> localHistogram = mapperContext.getLocalHistogram();
       for (OUTKEY ok: localHistogram.keySet()) {
         LOG.info("(" + ok.toString() + ", " + localHistogram.get(ok) + ") ");
       }
+
+      this.localHistogram = mapperContext.getLocalStringHistogram();
 
       mapPhase.complete();
       setPhase(TaskStatus.Phase.SORT);

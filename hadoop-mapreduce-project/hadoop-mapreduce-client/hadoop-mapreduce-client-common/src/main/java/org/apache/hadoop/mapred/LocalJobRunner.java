@@ -235,8 +235,14 @@ public class LocalJobRunner implements ClientProtocol {
       // where to fetch mapper outputs.
       private final Map<TaskAttemptID, MapOutputFile> mapOutputFiles;
 
+      private Map<String, Integer> localHistogram;
+
+      public Map<String, Integer> getLocalHistogram() {
+        return localHistogram;
+      }
+
       public MapTaskRunnable(TaskSplitMetaInfo info, int taskId, JobID jobId,
-          Map<TaskAttemptID, MapOutputFile> mapOutputFiles) {
+                             Map<TaskAttemptID, MapOutputFile> mapOutputFiles) {
         this.info = info;
         this.taskId = taskId;
         this.mapOutputFiles = mapOutputFiles;
@@ -268,6 +274,13 @@ public class LocalJobRunner implements ClientProtocol {
             map_tasks.getAndIncrement();
             myMetrics.launchMap(mapId);
             map.run(localConf, Job.this);
+
+            // set local histogram
+            localHistogram = map.localHistogram;
+            for (String key: localHistogram.keySet()) {
+              System.out.println("!!!!!!!!!!!!!!!! (" + key + ", " + localHistogram.get(key) + ")");
+            }
+
             myMetrics.completeMap(mapId);
           } finally {
             map_tasks.getAndDecrement();
@@ -298,6 +311,21 @@ public class LocalJobRunner implements ClientProtocol {
       for (TaskSplitMetaInfo task : taskInfo) {
         list.add(new MapTaskRunnable(task, numTasks++, jobId,
             mapOutputFiles));
+      }
+
+      return list;
+    }
+
+    protected List<MapTaskRunnable> getMapTaskRunnablesWithHistograms(
+            TaskSplitMetaInfo [] taskInfo, JobID jobId,
+            Map<TaskAttemptID, MapOutputFile> mapOutputFiles) {
+
+      int numTasks = 0;
+      ArrayList<MapTaskRunnable> list =
+              new ArrayList<MapTaskRunnable>();
+      for (TaskSplitMetaInfo task : taskInfo) {
+        list.add(new MapTaskRunnable(task, numTasks++, jobId,
+                mapOutputFiles));
       }
 
       return list;
@@ -492,6 +520,40 @@ public class LocalJobRunner implements ClientProtocol {
       }
     }
 
+    /** Run a set of tasks and waits for them to complete. */
+    private void runMapTaskRunnables(List<MapTaskRunnable> runnables,
+                          ExecutorService service, String taskType) throws Exception {
+      // Start populating the executor with work units.
+      // They may begin running immediately (in other threads).
+      for (Runnable r : runnables) {
+        service.submit(r);
+      }
+
+      try {
+        service.shutdown(); // Instructs queue to drain.
+
+        // Wait for tasks to finish; do not use a time-based timeout.
+        // (See http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=6179024)
+        LOG.info("Waiting for " + taskType + " tasks");
+        service.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+      } catch (InterruptedException ie) {
+        // Cancel all threads.
+        service.shutdownNow();
+        throw ie;
+      }
+
+      LOG.info(taskType + " task executor complete.");
+
+      // After waiting for the tasks to complete, if any of these
+      // have thrown an exception, rethrow it now in the main thread context.
+      for (RunnableWithThrowable r : runnables) {
+        if (r.storedException != null) {
+          throw new Exception(r.storedException);
+        }
+      }
+    }
+
+
     private org.apache.hadoop.mapreduce.OutputCommitter 
     createOutputCommitter(boolean newApiCommitter, JobID jobId, Configuration conf) throws Exception {
       org.apache.hadoop.mapreduce.OutputCommitter committer = null;
@@ -541,12 +603,32 @@ public class LocalJobRunner implements ClientProtocol {
         Map<TaskAttemptID, MapOutputFile> mapOutputFiles =
             Collections.synchronizedMap(new HashMap<TaskAttemptID, MapOutputFile>());
         
-        List<RunnableWithThrowable> mapRunnables = getMapTaskRunnables(
-            taskSplitMetaInfos, jobId, mapOutputFiles);
+//        List<RunnableWithThrowable> mapRunnables = getMapTaskRunnables(
+//            taskSplitMetaInfos, jobId, mapOutputFiles);
+
+        List<MapTaskRunnable> mapRunnables = getMapTaskRunnablesWithHistograms(
+                taskSplitMetaInfos, jobId, mapOutputFiles);
 
         initCounters(mapRunnables.size(), numReduceTasks);
         ExecutorService mapService = createMapExecutor();
-        runTasks(mapRunnables, mapService, "map");
+        runMapTaskRunnables(mapRunnables, mapService, "map");
+
+        Map<String, Integer> globalHistogram = new HashMap<>();
+        for (MapTaskRunnable mapTaskRunnable: mapRunnables) {
+          Map<String, Integer> localHistogram = mapTaskRunnable.getLocalHistogram();
+          for (String key: localHistogram.keySet()) {
+            if (globalHistogram.containsKey(key)) {
+              globalHistogram.put(key, globalHistogram.get(key) + localHistogram.get(key));
+            }
+            else {
+              globalHistogram.put(key, localHistogram.get(key));
+            }
+          }
+        }
+        for (String key: globalHistogram.keySet()) {
+          System.out.println("$$$$$$$$$$$$$$$$$ FUCKEEEERERRRRR (" + key + ", " + globalHistogram.get(key) + ")");
+        }
+
 
         // collect histogram
         // set numReduceTasks
