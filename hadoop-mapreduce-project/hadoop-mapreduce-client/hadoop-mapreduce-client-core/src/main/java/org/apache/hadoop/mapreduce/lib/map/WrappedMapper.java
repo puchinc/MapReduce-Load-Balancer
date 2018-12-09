@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
@@ -82,6 +83,12 @@ public class WrappedMapper<KEYIN, VALUEIN, KEYOUT, VALUEOUT>
     return new Context(mapContext, shouldSplit, globalHistogram);
   }
 
+  public Context getContext(MapContext<KEYIN, VALUEIN, KEYOUT, VALUEOUT> mapContext,
+                            boolean shouldSplit, Map<String, Integer> globalHistogram,
+                            Map<String, String> globalLookupTable) {
+    return new Context(mapContext, shouldSplit, globalHistogram, globalLookupTable);
+  }
+
   @InterfaceStability.Evolving
   public class Context 
       extends Mapper<KEYIN, VALUEIN, KEYOUT, VALUEOUT>.Context {
@@ -91,6 +98,7 @@ public class WrappedMapper<KEYIN, VALUEIN, KEYOUT, VALUEOUT>
     // calcuate local key distribution
     protected Map<KEYOUT, Integer> localHistogram;
     protected Map<String, Integer> globalHistogram;
+    protected Map<String, String> globalLookupTable;
     protected boolean shouldSplit;
 
     public Context(MapContext<KEYIN, VALUEIN, KEYOUT, VALUEOUT> mapContext) {
@@ -110,6 +118,16 @@ public class WrappedMapper<KEYIN, VALUEIN, KEYOUT, VALUEOUT>
       this.localHistogram = new HashMap<>();
       this.shouldSplit = shouldSplit;
       this.globalHistogram = globalHistogram;
+    }
+
+    public Context(MapContext<KEYIN, VALUEIN, KEYOUT, VALUEOUT> mapContext,
+                   boolean shouldSplit, Map<String, Integer> globalHistogram,
+                   Map<String, String> globalLookupTable) {
+      this.mapContext = mapContext;
+      this.localHistogram = new HashMap<>();
+      this.shouldSplit = shouldSplit;
+      this.globalHistogram = globalHistogram;
+      this.globalLookupTable = globalLookupTable;
     }
 
     /**
@@ -202,26 +220,27 @@ public class WrappedMapper<KEYIN, VALUEIN, KEYOUT, VALUEOUT>
 
       }
       else {
-        System.out.println("Noooooooot  SPLIT");
-        System.out.println(Arrays.toString(globalHistogram.keySet().toArray()));
-        System.out.println(Arrays.toString(globalHistogram.values().toArray()));
 
         // compute median from global histogram
-        int median = median(globalHistogram) * 5;
+//        int median = median(globalHistogram) * 5;
+        int median = median(globalHistogram);
         int count = globalHistogram.get(key.toString());
+
+        System.out.println(Arrays.asList(globalHistogram));
         System.out.println("Median: " + Integer.toString(median) + " Count: " + Integer.toString(count));
 
         // don't split
-        if (count <= median) {
+        if (count < median) {
           mapContext.write(key, value);
         }
         // split key
         else {
-          for (int i = 0; i < (int) count / median; i++) {
-            String temp = (key.toString() + "/" + i);
-            KEYOUT newKey = (KEYOUT) new Text(temp);
-            mapContext.write(newKey, value);
-          }
+          int randomNum = ThreadLocalRandom.current().nextInt(0, (int) count / median + 1);
+          String temp = (key.toString() + "/" + randomNum);
+          System.out.println("Splited Key, Value = (" + temp + ", " + value.toString() + ")");
+          KEYOUT newKey = (KEYOUT) new Text(temp);
+          mapContext.write(newKey, value);
+          globalLookupTable.put(temp, key.toString());
         }
       }
 

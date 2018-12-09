@@ -93,6 +93,9 @@ public class MapTask extends Task {
   // global histogram
   public static Map<String, Integer> globalHistogram = new HashMap<>();
 
+  // global lookup table
+  public static Map<String, String> globalLookupTable = new HashMap<>();
+
   private boolean shouldSplit;
 
   private TaskSplitIndex splitMetaInfo = new TaskSplitIndex();
@@ -128,9 +131,12 @@ public class MapTask extends Task {
     this.shouldSplit = shouldSplit;
   }
 
-
   public Map<String, Integer> getGlobalHistogram() {
     return MapTask.globalHistogram;
+  }
+
+  public Map<String, String> getGlobalLookupTable() {
+    return MapTask.globalLookupTable;
   }
 
   @Override
@@ -823,11 +829,14 @@ public class MapTask extends Task {
     WrappedMapper<INKEY, INVALUE, OUTKEY, OUTVALUE>.Context
         mapperContext =
         new WrappedMapper<INKEY, INVALUE, OUTKEY, OUTVALUE>().getContext(
-                mapContext, this.shouldSplit, MapTask.globalHistogram);
+                mapContext, this.shouldSplit, MapTask.globalHistogram, MapTask.globalLookupTable);
 
     try {
       input.initialize(split, mapperContext);
       mapper.run(mapperContext);
+
+      this.globalHistogram = MapTask.globalHistogram;
+      this.globalLookupTable = MapTask.globalLookupTable;
 
       // Get Result of local histogram from one mapper
 //      this.localHistogram = mapperContext.getLocalStringHistogram();

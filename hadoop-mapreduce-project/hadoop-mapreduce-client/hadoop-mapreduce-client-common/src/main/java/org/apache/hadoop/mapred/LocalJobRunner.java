@@ -25,12 +25,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
@@ -237,15 +232,16 @@ public class LocalJobRunner implements ClientProtocol {
 
       private Map<String, Integer> localHistogram;
       private Map<String, Integer> globalHistogram;
+      private Map<String, String> globalLookupTable;
 
       private boolean shouldSplit;
 
-      public Map<String, Integer> getLocalHistogram() {
-        return this.localHistogram;
-      }
-
       public Map<String, Integer> getGlobalHistogram() {
         return this.globalHistogram;
+      }
+
+      public Map<String, String> getGlobalLookupTable() {
+        return this.globalLookupTable;
       }
 
       public MapTaskRunnable(TaskSplitMetaInfo info, int taskId, JobID jobId,
@@ -293,12 +289,8 @@ public class LocalJobRunner implements ClientProtocol {
             myMetrics.launchMap(mapId);
             map.run(localConf, Job.this);
 
-            // set local histogram
-//            localHistogram = map.localHistogram;
-//            for (String key: localHistogram.keySet()) {
-//              System.out.println("Local Histogram (" + key + ", " + localHistogram.get(key) + ")");
-//            }
             this.globalHistogram = map.getGlobalHistogram();
+            this.globalLookupTable = map.getGlobalLookupTable();
 //            for (String key: this.globalHistogram.keySet()) {
 //              LOG.info("Global Histogram (" + key + ", " + this.globalHistogram.get(key) + ")");
 //            }
@@ -344,10 +336,13 @@ public class LocalJobRunner implements ClientProtocol {
       int numTasks = 0;
       ArrayList<MapTaskRunnable> list =
               new ArrayList<MapTaskRunnable>();
+      LOG.info("In getMapTaskRunnablesWithHistograms, Number of Mappers: " + Integer.toString(taskInfo.length));
       for (TaskSplitMetaInfo task : taskInfo) {
 //        list.add(new MapTaskRunnable(task, numTasks++, jobId,
 //                mapOutputFiles));
-        boolean shouldSplit = numTasks / taskInfo.length >= 0.2;
+        boolean shouldSplit = (float) numTasks / taskInfo.length >= 0.2;
+        LOG.info("numMapss / totalMaps = " + Integer.toString(numTasks) + " / " + Integer.toString(taskInfo.length));
+        LOG.info("shouldSplit = " + shouldSplit);
         list.add(new MapTaskRunnable(task, numTasks++, jobId,
                 mapOutputFiles, shouldSplit));
       }
@@ -512,7 +507,7 @@ public class LocalJobRunner implements ClientProtocol {
     }
 
     /** Run a set of tasks and waits for them to complete. */
-    private void runTasks(List<RunnableWithThrowable> runnables,
+    private void runTasks(List<? extends RunnableWithThrowable> runnables,
         ExecutorService service, String taskType) throws Exception {
       // Start populating the executor with work units.
       // They may begin running immediately (in other threads).
@@ -544,41 +539,7 @@ public class LocalJobRunner implements ClientProtocol {
       }
     }
 
-    /** Run a set of tasks and waits for them to complete. */
-    private void runMapTaskRunnables(List<MapTaskRunnable> runnables,
-                          ExecutorService service, String taskType) throws Exception {
-      // Start populating the executor with work units.
-      // They may begin running immediately (in other threads).
-      for (Runnable r : runnables) {
-        service.submit(r);
-      }
-
-      try {
-        service.shutdown(); // Instructs queue to drain.
-
-        // Wait for tasks to finish; do not use a time-based timeout.
-        // (See http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=6179024)
-        LOG.info("Waiting for " + taskType + " tasks");
-        service.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
-      } catch (InterruptedException ie) {
-        // Cancel all threads.
-        service.shutdownNow();
-        throw ie;
-      }
-
-      LOG.info(taskType + " task executor complete.");
-
-      // After waiting for the tasks to complete, if any of these
-      // have thrown an exception, rethrow it now in the main thread context.
-      for (RunnableWithThrowable r : runnables) {
-        if (r.storedException != null) {
-          throw new Exception(r.storedException);
-        }
-      }
-    }
-
-
-    private org.apache.hadoop.mapreduce.OutputCommitter 
+    private org.apache.hadoop.mapreduce.OutputCommitter
     createOutputCommitter(boolean newApiCommitter, JobID jobId, Configuration conf) throws Exception {
       org.apache.hadoop.mapreduce.OutputCommitter committer = null;
 
@@ -636,29 +597,22 @@ public class LocalJobRunner implements ClientProtocol {
         initCounters(mapRunnables.size(), numReduceTasks);
         ExecutorService mapService = createMapExecutor();
 
-        runMapTaskRunnables(mapRunnables, mapService, "map");
+        runTasks(mapRunnables, mapService, "map");
 
         // collect histogram
         // set numReduceTasks
 
-//        Map<String, Integer> globalHistogram = new HashMap<>();
-//        for (MapTaskRunnable mapTaskRunnable: mapRunnables) {
-//          Map<String, Integer> localHistogram = mapTaskRunnable.getLocalHistogram();
-//          for (String key: localHistogram.keySet()) {
-//            if (globalHistogram.containsKey(key)) {
-//              globalHistogram.put(key, globalHistogram.get(key) + localHistogram.get(key));
-//            }
-//            else {
-//              globalHistogram.put(key, localHistogram.get(key));
-//            }
-//          }
-//        }
-
         Map<String, Integer> globalHistogram = mapRunnables.get(0).getGlobalHistogram();
+        LOG.info(Arrays.asList(globalHistogram));
         for (String key: globalHistogram.keySet()) {
           LOG.info("Global Histogram (" + key + ", " + globalHistogram.get(key) + ")");
         }
 
+        Map<String, String> globalLookupTable = mapRunnables.get(0).getGlobalLookupTable();
+        LOG.info(Arrays.asList(globalLookupTable));
+        for (String key: globalLookupTable.keySet()) {
+          LOG.info("Global Lookup Table (" + key + ", " + globalLookupTable.get(key) + ")");
+        }
 
         try {
           if (numReduceTasks > 0) {
