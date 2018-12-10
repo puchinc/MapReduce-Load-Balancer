@@ -706,7 +706,8 @@ public class LocalJobRunner implements ClientProtocol {
           LOG.info("Global Histogram (" + key + ", " + globalHistogram.get(key) + ")");
         }
 
-        Map<String, String> globalLookupTable = new HashMap<>(mapRunnables.get(0).getGlobalLookupTable());
+//        Map<String, String> globalLookupTable = new HashMap<>(mapRunnables.get(0).getGlobalLookupTable());
+        Map<String, String> globalLookupTable = mapRunnables.get(0).getGlobalLookupTable();
         LOG.info(Arrays.asList(globalLookupTable));
         for (String key: globalLookupTable.keySet()) {
           LOG.info("Global Lookup Table (" + key + ", " + globalLookupTable.get(key) + ")");

@@ -21,8 +21,7 @@ package org.apache.hadoop.mapreduce.lib.reduce;
 import java.io.IOException;
 import java.net.URI;
 
-import java.util.Map;
-import java.util.Arrays;
+import java.util.*;
 
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
@@ -75,6 +74,10 @@ public class WrappedReducer<KEYIN, VALUEIN, KEYOUT, VALUEOUT>
     protected ReduceContext<KEYIN, VALUEIN, KEYOUT, VALUEOUT> reduceContext;
     protected Map<String, String> globalLookupTable;
 
+    private String lastKey = "";
+    private boolean isLast = false;
+    private List<VALUEIN> collector = new LinkedList<>();
+
     public Context(ReduceContext<KEYIN, VALUEIN, KEYOUT, VALUEOUT> reduceContext)
     {
       this.reduceContext = reduceContext; 
@@ -88,22 +91,57 @@ public class WrappedReducer<KEYIN, VALUEIN, KEYOUT, VALUEOUT>
     }
 
     @Override
-    public KEYIN getCurrentKey() throws IOException, InterruptedException {
-      KEYIN curKey = reduceContext.getCurrentKey();
-      String key = curKey.toString();
-      System.out.println("WrappedReducer get key: " + key);
+    public boolean nextKey() throws IOException, InterruptedException {
+      return reduceContext.nextKey();
+    }
 
-      System.out.println("Lookup Table: " + Arrays.asList(this.globalLookupTable));
+
+    private KEYIN getOriginalKey(KEYIN curKey) {
+      String key = curKey.toString();
+
+      System.out.println("WrappedReducer get key: " + key);
+//      System.out.println("LOOKUP TABLE " + Arrays.asList(globalLookupTable));
 
       if (globalLookupTable != null && globalLookupTable.containsKey(key)) {
         System.out.println("WrappedReducer lookup key: " + globalLookupTable.get(key));
-        System.out.println( (KEYIN) new Text(globalLookupTable.get(key)) );
         return (KEYIN) new Text(globalLookupTable.get(key));
-//        return curKey;
       }
 
       return curKey;
-//      return reduceContext.getCurrentKey();
+    }
+
+    @Override
+    public KEYIN getCurrentKey() throws IOException, InterruptedException {
+      return getOriginalKey(reduceContext.getCurrentKey());
+    }
+
+    @Override
+    public Iterable<VALUEIN> getValues() throws IOException,
+            InterruptedException {
+
+      return reduceContext.getValues();
+//      String key = getOriginalKey(reduceContext.getCurrentKey()).toString();
+//      System.out.println("Original Key: " + key);
+//
+//      if (lastKey == "" || lastKey == key) {
+//        lastKey = key;
+//        System.out.println("Collecting " + key + "............");
+//        for (VALUEIN value: reduceContext.getValues()) {
+//          collector.add(value);
+//        }
+//        return new Iterable<VALUEIN>() {
+//          @Override
+//          public Iterator<VALUEIN> iterator() {
+//            return null;
+//          }
+//        };
+//      }
+//
+//      lastKey = key;
+//      List<VALUEIN> res = new LinkedList<>(collector);
+//      System.out.println(key + " Collections: " + Arrays.toString(res.toArray()));
+//      collector = new LinkedList<>();
+//      return res;
     }
 
     @Override
@@ -134,6 +172,7 @@ public class WrappedReducer<KEYIN, VALUEIN, KEYOUT, VALUEOUT>
     @Override
     public void write(KEYOUT key, VALUEOUT value) throws IOException,
         InterruptedException {
+      if (value == null) return;
       reduceContext.write(key, value);
     }
 
@@ -323,17 +362,6 @@ public class WrappedReducer<KEYIN, VALUEIN, KEYOUT, VALUEOUT>
       reduceContext.progress();
     }
 
-    @Override
-    public Iterable<VALUEIN> getValues() throws IOException,
-        InterruptedException {
-      return reduceContext.getValues();
-    }
-
-    @Override
-    public boolean nextKey() throws IOException, InterruptedException {
-      return reduceContext.nextKey();
-    }
-    
     @Override
     public boolean getProfileEnabled() {
       return reduceContext.getProfileEnabled();

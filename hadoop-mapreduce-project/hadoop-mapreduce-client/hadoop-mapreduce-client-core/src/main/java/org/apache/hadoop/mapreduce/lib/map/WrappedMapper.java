@@ -199,7 +199,7 @@ public class WrappedMapper<KEYIN, VALUEIN, KEYOUT, VALUEOUT>
     public void write(KEYOUT key, VALUEOUT value) throws IOException,
         InterruptedException {
 
-      System.out.println("WrappedMapper Write (" + key + ", " + value + ")");
+//      System.out.println("WrappedMapper Write (" + key + ", " + value + ")");
 
       if (!this.shouldSplit) {
 //        System.out.println("SPLIT!");
@@ -227,7 +227,7 @@ public class WrappedMapper<KEYIN, VALUEIN, KEYOUT, VALUEOUT>
         int count = globalHistogram.get(key.toString());
 
 //        System.out.println(Arrays.asList(globalHistogram));
-        System.out.println("Median: " + Integer.toString(median) + " Count: " + Integer.toString(count));
+//        System.out.println("Median: " + Integer.toString(median) + " Count: " + Integer.toString(count));
 
         // don't split
         if (count < median) {
@@ -237,7 +237,7 @@ public class WrappedMapper<KEYIN, VALUEIN, KEYOUT, VALUEOUT>
         else {
           int randomNum = ThreadLocalRandom.current().nextInt(0, (int) count / median + 1);
           String temp = (key.toString() + "/" + randomNum);
-          System.out.println("Splited Key, Value = (" + temp + ", " + value.toString() + ")");
+//          System.out.println("Splited Key, Value = (" + temp + ", " + value.toString() + ")");
           KEYOUT newKey = (KEYOUT) new Text(temp);
           mapContext.write(newKey, value);
           globalLookupTable.put(temp, key.toString());

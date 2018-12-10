@@ -1584,7 +1584,6 @@ public class Job extends JobContextImpl implements JobContext, AutoCloseable {
   public boolean waitForCompletion(boolean verbose
                                    ) throws IOException, InterruptedException,
                                             ClassNotFoundException {
-    LOG.info("OHHHHHHHH YAAAAAAAAAAAAAAAAAAA");
     if (state == JobState.DEFINE) {
       submit();
     }
