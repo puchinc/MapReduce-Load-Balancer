@@ -226,7 +226,7 @@ public class WrappedMapper<KEYIN, VALUEIN, KEYOUT, VALUEOUT>
         int median = median(globalHistogram);
         int count = globalHistogram.get(key.toString());
 
-        System.out.println(Arrays.asList(globalHistogram));
+//        System.out.println(Arrays.asList(globalHistogram));
         System.out.println("Median: " + Integer.toString(median) + " Count: " + Integer.toString(count));
 
         // don't split

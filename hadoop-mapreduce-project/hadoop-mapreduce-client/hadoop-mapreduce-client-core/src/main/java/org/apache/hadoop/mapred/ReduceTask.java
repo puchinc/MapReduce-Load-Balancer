@@ -105,6 +105,9 @@ public class ReduceTask extends Task {
   private Counters.Counter fileOutputByteCounter =
     getCounters().findCounter(FileOutputFormatCounter.BYTES_WRITTEN);
 
+
+  private Map<String, String> globalLookupTable;
+
   // A custom comparator for map output files. Here the ordering is determined
   // by the file's size and path. In case of files with same size and different
   // file paths, the first parameter is considered smaller than the second one.
@@ -137,7 +140,13 @@ public class ReduceTask extends Task {
     super(jobFile, taskId, partition, numSlotsRequired);
     this.numMaps = numMaps;
   }
-  
+  public ReduceTask(String jobFile, TaskAttemptID taskId,
+                    int partition, int numMaps, int numSlotsRequired, Map<String, String> globalLookupTable) {
+    super(jobFile, taskId, partition, numSlotsRequired);
+    this.numMaps = numMaps;
+    this.globalLookupTable = globalLookupTable;
+  }
+
 
   /**
    * Register the set of mapper outputs created by a LocalJobRunner-based
@@ -622,7 +631,7 @@ public class ReduceTask extends Task {
                                                trackedRW,
                                                committer,
                                                reporter, comparator, keyClass,
-                                               valueClass);
+                                               valueClass, globalLookupTable);
     try {
       reducer.run(reducerContext);
     } finally {

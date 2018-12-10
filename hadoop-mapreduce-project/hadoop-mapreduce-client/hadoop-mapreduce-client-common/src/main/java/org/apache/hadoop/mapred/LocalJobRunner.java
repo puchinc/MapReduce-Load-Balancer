@@ -359,6 +359,7 @@ public class LocalJobRunner implements ClientProtocol {
       // external context; this delivers state to the reducers regarding
       // where to fetch mapper outputs.
       private final Map<TaskAttemptID, MapOutputFile> mapOutputFiles;
+      private Map<String, String> globalLookupTable;
 
       public ReduceTaskRunnable(int taskId, JobID jobId,
           Map<TaskAttemptID, MapOutputFile> mapOutputFiles) {
@@ -369,14 +370,29 @@ public class LocalJobRunner implements ClientProtocol {
         this.localConf.set("mapreduce.jobtracker.address", "local");
       }
 
+      public ReduceTaskRunnable(int taskId, JobID jobId,
+                                Map<TaskAttemptID, MapOutputFile> mapOutputFiles,
+                                Map<String, String> globalLookupTable) {
+        this.taskId = taskId;
+        this.jobId = jobId;
+        this.mapOutputFiles = mapOutputFiles;
+        this.localConf = new JobConf(job);
+        this.localConf.set("mapreduce.jobtracker.address", "local");
+        this.globalLookupTable = globalLookupTable;
+      }
+
       public void run() {
         try {
           TaskAttemptID reduceId = new TaskAttemptID(new TaskID(
               jobId, TaskType.REDUCE, taskId), 0);
           LOG.info("Starting task: " + reduceId);
 
+//          MapTask map = new MapTask(systemJobFile.toString(), mapId, taskId,
+//                  info.getSplitIndex(), 1, this.shouldSplit);
+//          ReduceTask reduce = new ReduceTask(systemJobFile.toString(),
+//              reduceId, taskId, mapIds.size(), 1);
           ReduceTask reduce = new ReduceTask(systemJobFile.toString(),
-              reduceId, taskId, mapIds.size(), 1);
+                  reduceId, taskId, mapIds.size(), 1, globalLookupTable);
           reduce.setUser(UserGroupInformation.getCurrentUser().
               getShortUserName());
           setupChildMapredLocalDirs(reduce, localConf);
@@ -423,6 +439,21 @@ public class LocalJobRunner implements ClientProtocol {
 
       return list;
     }
+
+    protected List<ReduceTaskRunnable> getReduceTaskRunnablesWithLookupTable(
+            JobID jobId, Map<TaskAttemptID, MapOutputFile> mapOutputFiles,
+            Map<String, String> globalLookupTable) {
+
+      int taskId = 0;
+      ArrayList<ReduceTaskRunnable> list =
+              new ArrayList<ReduceTaskRunnable>();
+      for (int i = 0; i < this.numReduceTasks; i++) {
+        list.add(new ReduceTaskRunnable(taskId++, jobId, mapOutputFiles, globalLookupTable));
+      }
+
+      return list;
+    }
+
 
     /**
      * Initialize the counters that will hold partial-progress from
@@ -507,7 +538,7 @@ public class LocalJobRunner implements ClientProtocol {
     }
 
     /** Run a set of tasks and waits for them to complete. */
-    private void runTasks(List<? extends RunnableWithThrowable> runnables,
+    private void runTasks(List<RunnableWithThrowable> runnables,
         ExecutorService service, String taskType) throws Exception {
       // Start populating the executor with work units.
       // They may begin running immediately (in other threads).
@@ -538,6 +569,73 @@ public class LocalJobRunner implements ClientProtocol {
         }
       }
     }
+
+    /** Run a set of tasks and waits for them to complete. */
+    private void runMapTaskRunnables(List<MapTaskRunnable> runnables,
+                                     ExecutorService service, String taskType) throws Exception {
+      // Start populating the executor with work units.
+      // They may begin running immediately (in other threads).
+      for (Runnable r : runnables) {
+        service.submit(r);
+      }
+
+      try {
+        service.shutdown(); // Instructs queue to drain.
+
+        // Wait for tasks to finish; do not use a time-based timeout.
+        // (See http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=6179024)
+        LOG.info("Waiting for " + taskType + " tasks");
+        service.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+      } catch (InterruptedException ie) {
+        // Cancel all threads.
+        service.shutdownNow();
+        throw ie;
+      }
+
+      LOG.info(taskType + " task executor complete.");
+
+      // After waiting for the tasks to complete, if any of these
+      // have thrown an exception, rethrow it now in the main thread context.
+      for (RunnableWithThrowable r : runnables) {
+        if (r.storedException != null) {
+          throw new Exception(r.storedException);
+        }
+      }
+    }
+
+    /** Run a set of tasks and waits for them to complete. */
+    private void runReduceTaskRunnables(List<ReduceTaskRunnable> runnables,
+                                     ExecutorService service, String taskType) throws Exception {
+      // Start populating the executor with work units.
+      // They may begin running immediately (in other threads).
+      for (Runnable r : runnables) {
+        service.submit(r);
+      }
+
+      try {
+        service.shutdown(); // Instructs queue to drain.
+
+        // Wait for tasks to finish; do not use a time-based timeout.
+        // (See http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=6179024)
+        LOG.info("Waiting for " + taskType + " tasks");
+        service.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+      } catch (InterruptedException ie) {
+        // Cancel all threads.
+        service.shutdownNow();
+        throw ie;
+      }
+
+      LOG.info(taskType + " task executor complete.");
+
+      // After waiting for the tasks to complete, if any of these
+      // have thrown an exception, rethrow it now in the main thread context.
+      for (RunnableWithThrowable r : runnables) {
+        if (r.storedException != null) {
+          throw new Exception(r.storedException);
+        }
+      }
+    }
+
 
     private org.apache.hadoop.mapreduce.OutputCommitter
     createOutputCommitter(boolean newApiCommitter, JobID jobId, Configuration conf) throws Exception {
@@ -597,7 +695,7 @@ public class LocalJobRunner implements ClientProtocol {
         initCounters(mapRunnables.size(), numReduceTasks);
         ExecutorService mapService = createMapExecutor();
 
-        runTasks(mapRunnables, mapService, "map");
+        runMapTaskRunnables(mapRunnables, mapService, "map");
 
         // collect histogram
         // set numReduceTasks
@@ -608,7 +706,7 @@ public class LocalJobRunner implements ClientProtocol {
           LOG.info("Global Histogram (" + key + ", " + globalHistogram.get(key) + ")");
         }
 
-        Map<String, String> globalLookupTable = mapRunnables.get(0).getGlobalLookupTable();
+        Map<String, String> globalLookupTable = new HashMap<>(mapRunnables.get(0).getGlobalLookupTable());
         LOG.info(Arrays.asList(globalLookupTable));
         for (String key: globalLookupTable.keySet()) {
           LOG.info("Global Lookup Table (" + key + ", " + globalLookupTable.get(key) + ")");
@@ -616,10 +714,12 @@ public class LocalJobRunner implements ClientProtocol {
 
         try {
           if (numReduceTasks > 0) {
-            List<RunnableWithThrowable> reduceRunnables = getReduceTaskRunnables(
-                jobId, mapOutputFiles);
+//            List<RunnableWithThrowable> reduceRunnables = getReduceTaskRunnables(
+//                jobId, mapOutputFiles);
+            List<ReduceTaskRunnable> reduceRunnables = getReduceTaskRunnablesWithLookupTable(
+                    jobId, mapOutputFiles, globalLookupTable);
             ExecutorService reduceService = createReduceExecutor();
-            runTasks(reduceRunnables, reduceService, "reduce");
+            runReduceTaskRunnables(reduceRunnables, reduceService, "reduce");
           }
         } finally {
           for (MapOutputFile output : mapOutputFiles.values()) {

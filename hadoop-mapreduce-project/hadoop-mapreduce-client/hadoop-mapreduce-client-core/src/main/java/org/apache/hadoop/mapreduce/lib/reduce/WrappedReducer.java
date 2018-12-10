@@ -21,6 +21,9 @@ package org.apache.hadoop.mapreduce.lib.reduce;
 import java.io.IOException;
 import java.net.URI;
 
+import java.util.Map;
+import java.util.Arrays;
+
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.conf.Configuration;
@@ -38,6 +41,7 @@ import org.apache.hadoop.mapreduce.ReduceContext;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.TaskAttemptID;
 import org.apache.hadoop.security.Credentials;
+import org.apache.hadoop.io.Text;
 
 /**
  * A {@link Reducer} which wraps a given one to allow for custom 
@@ -57,21 +61,49 @@ public class WrappedReducer<KEYIN, VALUEIN, KEYOUT, VALUEOUT>
   getReducerContext(ReduceContext<KEYIN, VALUEIN, KEYOUT, VALUEOUT> reduceContext) {
     return new Context(reduceContext);
   }
-  
+
+  public Reducer<KEYIN, VALUEIN, KEYOUT, VALUEOUT>.Context
+  getReducerContext(ReduceContext<KEYIN, VALUEIN, KEYOUT, VALUEOUT> reduceContext,
+                    Map<String, String> globalLookupTable) {
+    return new Context(reduceContext, globalLookupTable);
+  }
+
   @InterfaceStability.Evolving
   public class Context 
       extends Reducer<KEYIN, VALUEIN, KEYOUT, VALUEOUT>.Context {
 
     protected ReduceContext<KEYIN, VALUEIN, KEYOUT, VALUEOUT> reduceContext;
+    protected Map<String, String> globalLookupTable;
 
     public Context(ReduceContext<KEYIN, VALUEIN, KEYOUT, VALUEOUT> reduceContext)
     {
       this.reduceContext = reduceContext; 
     }
 
+    public Context(ReduceContext<KEYIN, VALUEIN, KEYOUT, VALUEOUT> reduceContext,
+                   Map<String, String> globalLookupTable)
+    {
+      this.reduceContext = reduceContext;
+      this.globalLookupTable = globalLookupTable;
+    }
+
     @Override
     public KEYIN getCurrentKey() throws IOException, InterruptedException {
-      return reduceContext.getCurrentKey();
+      KEYIN curKey = reduceContext.getCurrentKey();
+      String key = curKey.toString();
+      System.out.println("WrappedReducer get key: " + key);
+
+      System.out.println("Lookup Table: " + Arrays.asList(this.globalLookupTable));
+
+      if (globalLookupTable != null && globalLookupTable.containsKey(key)) {
+        System.out.println("WrappedReducer lookup key: " + globalLookupTable.get(key));
+        System.out.println( (KEYIN) new Text(globalLookupTable.get(key)) );
+        return (KEYIN) new Text(globalLookupTable.get(key));
+//        return curKey;
+      }
+
+      return curKey;
+//      return reduceContext.getCurrentKey();
     }
 
     @Override
